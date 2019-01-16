@@ -104,11 +104,14 @@ static int __init specdriver_init(void)
 {
 	int err = 0;
 
+	/* This range is corresponding to with the renge of PCI bus number */
+	int tmp_MINORDEVICES = 255;
+
 	/* Initialize the device count */
 	atomic_set(&specdriver_deviceCount, 0);
 
 	/* Allocate character device region dynamically */
-	if ((err = alloc_chrdev_region(&specdriver_devt, MINORNR, MAXDEVICES, NODENAME)) != 0) {
+	if ((err = alloc_chrdev_region(&specdriver_devt, MINORNR, tmp_MAXDEVICES, NODENAME)) != 0) {
 		mod_info("Couldn't allocate chrdev region. Module not loaded.\n");
 		goto init_alloc_fail;
 	}
@@ -236,9 +239,10 @@ static int __devinit specdriver_probe(struct pci_dev *pdev, const struct pci_dev
 	if ((err = pci_set_mwi(pdev)) != 0)
 		mod_info("MWI not supported. Continue without enabling MWI.\n");
 
-	/* Get / Increment the device id */
-	devid = atomic_inc_return(&specdriver_deviceCount) - 1;
-	if (devid >= MAXDEVICES) {
+	/* Increment the device id */
+	atomic_inc(&specdriver_deviceCount);
+	devid = &pdev->bus->number;
+	if (atomic_read(&specdriver_deviceCount) > MAXDEVICES) {
 		mod_info("Maximum number of devices reached! Increase MAXDEVICES.\n");
 		err = -ENOMSG;
 		goto probe_maxdevices_fail;
@@ -262,13 +266,13 @@ static int __devinit specdriver_probe(struct pci_dev *pdev, const struct pci_dev
 	privdata->pdev = pdev;
 
 	/* Device add to sysfs */
-	devno = MKDEV(MAJOR(specdriver_devt), MINOR(specdriver_devt) + devid);
+	devno = MKDEV(MAJOR(specdriver_devt), devid);
 	privdata->devno = devno;
 	if (specdriver_class != NULL) {
 		/* FIXME: some error checking missing here */
-		privdata->class_dev = class_device_create(specdriver_class, NULL, devno, &(pdev->dev), NODENAMEFMT, MINOR(specdriver_devt) + devid, privdata);
+		privdata->class_dev = class_device_create(specdriver_class, NULL, devno, &(pdev->dev), NODENAMEFMT, devid, privdata);
 		class_set_devdata( privdata->class_dev, privdata );
-		mod_info("Device /dev/%s%d added\n",NODENAME,MINOR(specdriver_devt) + devid);
+		mod_info("Device /dev/%s%d added\n",NODENAME,devid);
 	}
 
 	/* Setup mmaped BARs into kernel space */
@@ -371,6 +375,8 @@ static void __devexit specdriver_remove(struct pci_dev *pdev)
 
 	/* Disabling PCI device */
 	pci_disable_device(pdev);
+
+	atomic_dec(&specdriver_deviceCount);
 
 	mod_info("Device at %s removed\n", dev_name(&pdev->dev));
 }
