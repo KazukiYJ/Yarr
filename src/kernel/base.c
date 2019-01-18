@@ -40,7 +40,7 @@
 #include <linux/list.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0)
     #include <linux/scatterlist.h>
-#else   
+#else
     #include <asm/scatterlist.h>
 #endif
 #include <linux/vmalloc.h>
@@ -104,14 +104,11 @@ static int __init specdriver_init(void)
 {
 	int err = 0;
 
-	/* This range is corresponding to with the renge of PCI bus number */
-	int tmp_MINORDEVICES = 255;
-
 	/* Initialize the device count */
 	atomic_set(&specdriver_deviceCount, 0);
 
 	/* Allocate character device region dynamically */
-	if ((err = alloc_chrdev_region(&specdriver_devt, MINORNR, tmp_MAXDEVICES, NODENAME)) != 0) {
+	if ((err = alloc_chrdev_region(&specdriver_devt, MINORNR, MAX_BUSNUMBER, NODENAME)) != 0) {
 		mod_info("Couldn't allocate chrdev region. Module not loaded.\n");
 		goto init_alloc_fail;
 	}
@@ -139,7 +136,7 @@ static int __init specdriver_init(void)
 init_pcireg_fail:
 	class_destroy(specdriver_class);
 init_class_fail:
-	unregister_chrdev_region(specdriver_devt, MAXDEVICES);
+	unregister_chrdev_region(specdriver_devt, MAX_BUSNUMBER);
 init_alloc_fail:
 	return err;
 }
@@ -153,7 +150,7 @@ static void specdriver_exit(void)
 {
 
 	pci_unregister_driver(&specdriver_driver);
-	unregister_chrdev_region(specdriver_devt, MAXDEVICES);
+	unregister_chrdev_region(specdriver_devt, MAX_BUSNUMBER);
 
 	if (specdriver_class != NULL)
 		class_destroy(specdriver_class);
@@ -215,7 +212,7 @@ static int __devinit specdriver_probe(struct pci_dev *pdev, const struct pci_dev
 		mod_info("Couldn't enable device\n");
 		goto probe_pcien_fail;
 	}
-    
+
     /* Setup DMA mask, no idea why ?? */
 	if(pci_set_dma_mask(pdev, DMA_BIT_MASK(64)) == 0) {
 		mod_info("64bits bus master DMA capable\n");
@@ -230,10 +227,10 @@ static int __devinit specdriver_probe(struct pci_dev *pdev, const struct pci_dev
 	} else {
 	    mod_info("Unable to perform DMA mask set operation!\n");
 	}
-    
+
     /* LEts use MSI interrupts */
-    if (pci_enable_msi(pdev) != 0) 
-        mod_info("Failed activating MSI!"); 
+    if (pci_enable_msi(pdev) != 0)
+        mod_info("Failed activating MSI!");
 
 	/* Set Memory-Write-Invalidate support */
 	if ((err = pci_set_mwi(pdev)) != 0)
@@ -241,7 +238,8 @@ static int __devinit specdriver_probe(struct pci_dev *pdev, const struct pci_dev
 
 	/* Increment the device id */
 	atomic_inc(&specdriver_deviceCount);
-	devid = &pdev->bus->number;
+	devid = (int)pdev->bus->number;
+	mod_info("Device count : %d,  PCIe Bus number : %d", atomic_read(&specdriver_deviceCount), devid);
 	if (atomic_read(&specdriver_deviceCount) > MAXDEVICES) {
 		mod_info("Maximum number of devices reached! Increase MAXDEVICES.\n");
 		err = -ENOMSG;
@@ -336,7 +334,7 @@ static void __devexit specdriver_remove(struct pci_dev *pdev)
 #endif
 {
 	specdriver_privdata_t *privdata = NULL;
-    
+
 	/* Get private data from the device */
 	privdata = pci_get_drvdata(pdev);
 
@@ -369,7 +367,7 @@ static void __devexit specdriver_remove(struct pci_dev *pdev)
 
 	/* Releasing privdata */
 	kfree(privdata);
-    
+
     /* Disable MSI IRQ */
     pci_disable_msi(pdev);
 

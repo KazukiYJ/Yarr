@@ -31,4 +31,8 @@
 /* Maximum number of devices*/
 #define MAXDEVICES 4
 
+/* This range is corresponding to with the renge of PCI bus number    */
+/* Actual maximum number of the connection is 4 defined as MAXDEVICES */
+#define MAX_BUSNUMBER 255
+
 #endif
