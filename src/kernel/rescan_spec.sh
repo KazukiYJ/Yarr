@@ -44,6 +44,8 @@ echo "1" > /sys/bus/pci/devices/0000:${DEVICE}/remove
 echo "1" > /sys/bus/pci/rescan
 # ls -l /sys/bus/pci/devices/0000:${DEVICE}
 
+sleep 1
+
 if [ -e /sys/bus/pci/devices/0000:${DEVICE} ]; then
 	echo "-----> Done!"
 	exit 0
